@@ -1,0 +1,8 @@
+# Copy to .github/CODEOWNERS in the app repo. Replace @org/handles with real GitHub users or teams.
+# Changes to these paths need review from the listed owners when the ruleset requires code owner review.
+/supabase/migrations/   @YOUR-ORG/app-owners
+/src/lib/auth/          @YOUR-ORG/app-owners
+/src/lib/crypto/        @YOUR-ORG/app-owners
+/src/app/api/stripe/    @YOUR-ORG/app-owners
+/worker/                @YOUR-ORG/app-owners
+/.github/               @YOUR-ORG/app-owners

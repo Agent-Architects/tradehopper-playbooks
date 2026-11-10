@@ -1,0 +1,48 @@
+# TradeHopper: Security and Team Playbooks
+
+Two free packs for the TradeHopper team: a security pack for the web app, and a team orchestration pack for a shared knowledge base that every agent on the team can use.
+
+Open the HTML docs in a browser for the full guide. They are single files and work on a phone.
+
+## Package A: security pack
+
+[`A-security-pack.html`](A-security-pack.html)
+
+| Path | What it is |
+|---|---|
+| `.claude/skills/prelaunch-security-audit/SKILL.md` | 40-item pre-launch checklist as a Claude Code skill, based on the OWASP Top 10 2025 and OWASP ASVS 5.0 |
+| `security-pack/audit-runbook.md` | Orchestrated audit in Claude Code (one subagent per item, fixes on branches with PRs), with the exact orchestrator prompt |
+| `.github/workflows/security-ci.yml` | PR checks: lint, typecheck, tests, gitleaks, Semgrep, CodeQL, dependency audit and review, optional AI review |
+| `.github/dependabot.yml` | Grouped weekly updates for npm and GitHub Actions |
+| `security-pack/examples/sentry-to-pr.yml` | Error-to-PR loop: Claude reads new Sentry issues and opens draft fix PRs |
+| `security-pack/examples/cve-poller.yml` | CVE poller in GitHub Actions: OSV and Dependabot alerts, draft upgrade PRs |
+| `security-pack/prompts/grok-bot-cve-poller.md` | Ready-to-paste CVE poller for the hosted Grok Bot |
+| `security-pack/examples/CODEOWNERS` | Code owners for security-critical paths |
+
+The workflow and Dependabot files are meant to be copied into the app repo. In this repo, the CI workflow only runs the jobs that apply (there is no `package-lock.json` here).
+
+## Package B: team orchestration pack
+
+[`B-team-orchestration-pack.html`](B-team-orchestration-pack.html)
+
+`team-pack/template/` is a ready-to-copy team-brain repo:
+
+- `AGENTS.md` (team protocol) and `CLAUDE.md` (imports `@AGENTS.md`)
+- `knowledge/` in the Open Knowledge Format (OKF) v0.2
+- `people/<name>/inbox.md` and `outbox.md`
+- `tasks/` board mirror
+- `.agents/skills/` with 7 shared skills in the Agent Skills format (`.claude/skills` symlinks to it): connected-services-interview, task-management, inbox-outbox, repo-sync, workspace-tidiness, meeting-notes, weekly-retro
+- `grok-bot/` protocol and Custom Rules for the hosted Grok Bot
+- `.github/workflows/` scheduled board sync and weekly retro
+
+## Notes
+
+- Nothing here is legal advice. See the business-risk section in the security pack.
+- The checklist is a baseline, not a penetration test. Once you have paying users, get a professional review.
+- Tool versions and config keys were checked against official docs in November 2026. Re-check before relying on them.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+From Agent Architects
