@@ -1,0 +1,53 @@
+# CI for this playbook repo. The app-targeted workflows live under security-pack/templates/
+# and team-pack/template/ and do not run here; this workflow lints them instead.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: lint workflow templates
+    runs-on: ubuntu-latest
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install actionlint
+        run: |
+          TARBALL="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          BASE="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o "$TARBALL" "$BASE/$TARBALL"
+          curl -sSfL -o checksums.txt "$BASE/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+          grep " ${TARBALL}\$" checksums.txt | sha256sum -c -
+          tar -xzf "$TARBALL" actionlint
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Lint
+        run: |
+          actionlint -shellcheck= .github/workflows/*.yml \
+            security-pack/templates/.github/workflows/*.yml \
+            team-pack/template/.github/workflows/*.yml
+      - name: Check templates pin actions to commit SHAs
+        run: |
+          if grep -rnE 'uses: [^ ]+@v[0-9]' .github/workflows security-pack/templates team-pack/template/.github; then
+            echo "Pin actions to a full commit SHA with a version comment."; exit 1
+          fi
+
+  docs:
+    name: docs, skills and banned terms
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: HTML structure, anchors and repo paths
+        run: python3 scripts/check_html.py
+      - name: Agent Skills and OKF frontmatter
+        run: python3 scripts/check_skills.py
+      - name: Banned terms
+        run: scripts/check_banned.sh

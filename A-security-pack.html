@@ -60,12 +60,12 @@ footer{margin-top:60px;padding-top:16px;border-top:1px solid var(--border);color
 <tr><th>File in the repo</th><th>What it is</th></tr>
 <tr><td><code>.claude/skills/prelaunch-security-audit/SKILL.md</code></td><td>The 40-item checklist as a Claude Code skill (Agent Skills format)</td></tr>
 <tr><td><code>security-pack/audit-runbook.md</code></td><td>Orchestrated audit, including the exact orchestrator prompt</td></tr>
-<tr><td><code>.github/workflows/security-ci.yml</code></td><td>PR checks: lint, typecheck, tests, gitleaks, Semgrep, CodeQL, dependency audit, optional AI review</td></tr>
-<tr><td><code>.github/dependabot.yml</code></td><td>Weekly grouped dependency and Actions updates</td></tr>
-<tr><td><code>security-pack/examples/sentry-to-pr.yml</code></td><td>Error-to-PR loop: Claude reads new Sentry issues and opens draft PRs</td></tr>
-<tr><td><code>security-pack/examples/cve-poller.yml</code></td><td>Claude Code CVE poller: OSV plus Dependabot alerts, draft upgrade PRs</td></tr>
+<tr><td><code>security-pack/templates/.github/workflows/security-ci.yml</code></td><td>PR checks: lint, typecheck, tests, gitleaks, Semgrep, CodeQL, dependency audit, optional AI review</td></tr>
+<tr><td><code>security-pack/templates/.github/dependabot.yml</code></td><td>Weekly grouped dependency and Actions updates with a 7-day cooldown</td></tr>
+<tr><td><code>security-pack/templates/.github/workflows/sentry-to-pr.yml</code></td><td>Error-to-PR loop: Claude reads new Sentry issues and opens draft PRs</td></tr>
+<tr><td><code>security-pack/templates/.github/workflows/cve-poller.yml</code></td><td>Claude Code CVE poller: OSV plus Dependabot alerts, draft upgrade PRs</td></tr>
 <tr><td><code>security-pack/prompts/grok-bot-cve-poller.md</code></td><td>Ready-to-paste CVE poller for the hosted Grok Bot</td></tr>
-<tr><td><code>security-pack/examples/CODEOWNERS</code></td><td>Code owner rules for security-critical paths</td></tr>
+<tr><td><code>security-pack/templates/.github/CODEOWNERS</code></td><td>Code owner rules for security-critical paths</td></tr>
 </table>
 <div class="note"><strong>Scope.</strong> This is a baseline that gets an MVP well past the common failures. It is not a penetration test. Once you have paying users and real money flowing, pay a qualified security professional to review the app, starting with credential storage and order execution.</div>
 
@@ -135,7 +135,7 @@ Report the list of PR URLs when done, plus anything still FAIL or NOT TESTED.</c
 <p>Also run Claude Code's built-in <code>/security-review</code> on each fix branch. It reviews the diff between your branch and the default branch on <code>origin</code> for issues like injection, auth problems and data exposure. It is an extra layer, not a substitute for the checklist.</p>
 
 <h2 id="cicd">3. CI/CD</h2>
-<p><code>.github/workflows/security-ci.yml</code> runs on every pull request and every push to <code>main</code>. It passes actionlint. Node jobs only run when a <code>package-lock.json</code> exists.</p>
+<p><code>security-pack/templates/.github/workflows/security-ci.yml</code> runs on every pull request and every push to <code>main</code>. Copy everything under <code>security-pack/templates/.github/</code> into the app repo's <code>.github/</code> folder. Every action is pinned to a full commit SHA with a version comment (tags can be moved; SHAs cannot), and Dependabot keeps the pins current. Downloaded tools are checksum-verified. The files pass actionlint. Node jobs only run when a <code>package-lock.json</code> exists.</p>
 <table>
 <tr><th>Job</th><th>What it does</th><th>Notes</th></tr>
 <tr><td>build-test</td><td><code>npm ci</code>, lint, typecheck, tests, build</td><td>Uses <code>npm run lint/typecheck/test/build</code> if present</td></tr>
@@ -148,7 +148,7 @@ Report the list of PR URLs when done, plus anything still FAIL or NOT TESTED.</c
 </table>
 <details><summary>The workflow file</summary>
 <pre><code># Security CI for a Next.js / Node (TypeScript) app. Runs on every pull request and on pushes to main.
-# Copy into the app repo at .github/workflows/security-ci.yml, then mark the jobs below as required
+# Copy into the app repo at .github/workflows/security-ci.yml (with ../dependabot.yml and ../CODEOWNERS), then mark the jobs below as required
 # status checks in a branch ruleset for main.
 #
 # Optional switches (Settings &gt; Secrets and variables &gt; Actions &gt; Variables):
@@ -177,7 +177,7 @@ jobs:
     outputs:
       node: ${{ steps.check.outputs.node }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: check
         run: |
           if [ -f package-lock.json ]; then echo "node=true" &gt;&gt; "$GITHUB_OUTPUT"; else echo "node=false" &gt;&gt; "$GITHUB_OUTPUT"; fi
@@ -188,8 +188,8 @@ jobs:
     if: needs.detect.outputs.node == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
           cache: npm
@@ -212,17 +212,22 @@ jobs:
     env:
       GITLEAKS_VERSION: 8.30.1
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # scan full history, not just the last commit
       - name: Install gitleaks
         run: |
-          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          curl -sSfL -o checksums.txt "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
-          grep " gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz$" checksums.txt | sha256sum -c -
-          tar -xzf gitleaks.tar.gz gitleaks
+          TARBALL="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          cd "$RUNNER_TEMP"
+          # Keep the release filename: sha256sum -c looks up the file named in the checksums list.
+          curl -sSfL -o "$TARBALL" "$BASE/$TARBALL"
+          curl -sSfL -o checksums.txt "$BASE/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep " ${TARBALL}\$" checksums.txt | sha256sum -c -
+          tar -xzf "$TARBALL" gitleaks
+          echo "$RUNNER_TEMP" &gt;&gt; "$GITHUB_PATH"
       - name: Scan
-        run: ./gitleaks git . --redact --verbose --exit-code 1
+        run: gitleaks git . --redact --verbose --exit-code 1
 
   semgrep:
     name: SAST (semgrep)
@@ -231,7 +236,7 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: semgrep scan --config auto --error
 
   codeql:
@@ -243,22 +248,21 @@ jobs:
       security-events: write
       actions: read
     steps:
-      - uses: actions/checkout@v7
-      - uses: github/codeql-action/init@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: javascript-typescript
           build-mode: none
           queries: security-extended
-      - uses: github/codeql-action/analyze@v4
-
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
   dependency-audit:
     name: dependency audit
     needs: detect
     if: needs.detect.outputs.node == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
           cache: npm
@@ -274,8 +278,8 @@ jobs:
     if: ${{ github.event_name == 'pull_request' &amp;&amp; !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/dependency-review-action@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
 
@@ -293,10 +297,10 @@ jobs:
       issues: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1.0.271
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Or, with a Claude subscription: claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -315,7 +319,7 @@ jobs:
 <details><summary>Branch protection (rulesets)</summary>
 <p>Settings > Rules > Rulesets > New branch ruleset, target <code>main</code>:</p>
 <ul>
-<li>Require a pull request before merging, with at least 1 approval, dismiss stale approvals, and require review from code owners (use <code>security-pack/examples/CODEOWNERS</code> for auth, crypto, payments, worker and migrations).</li>
+<li>Require a pull request before merging, with at least 1 approval, dismiss stale approvals, and require review from code owners (use <code>security-pack/templates/.github/CODEOWNERS</code> for auth, crypto, payments, worker and migrations).</li>
 <li>Require status checks to pass: <code>lint, typecheck, test</code>, <code>secret scan (gitleaks)</code>, <code>SAST (semgrep)</code>, <code>dependency audit</code>, plus <code>SAST (CodeQL)</code> and <code>dependency review</code> where they run.</li>
 <li>Block force pushes. Restrict deletions. Optionally require signed commits.</li>
 <li>Turn on secret scanning and push protection (Settings > Code security). They are available for public repos; private repos need GitHub Secret Protection.</li>
@@ -422,7 +426,7 @@ posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN!, {
 <h3>Error-to-PR loop</h3>
 <p>Claude reads new Sentry issues on a schedule and drafts fix PRs. Humans review every PR. Nothing deploys by itself.</p>
 <ul>
-<li><strong>GitHub Actions</strong> (<code>security-pack/examples/sentry-to-pr.yml</code>): weekdays, fetches unresolved issues first seen in the last 24 hours via <code>GET /api/0/organizations/{org}/issues/</code> with a read-only Sentry token, then <code>claude-code-action</code> picks up to three, writes a failing test, makes the smallest fix, runs lint, typecheck and tests, and opens a draft PR. It is told not to touch auth, crypto, payments, execution or migrations; for those it opens an issue instead.</li>
+<li><strong>GitHub Actions</strong> (<code>security-pack/templates/.github/workflows/sentry-to-pr.yml</code>): weekdays, fetches unresolved issues first seen in the last 24 hours via <code>GET /api/0/organizations/{org}/issues/</code> with a read-only Sentry token, then <code>claude-code-action</code> picks up to three, writes a failing test, makes the smallest fix, runs lint, typecheck and tests, and opens a draft PR. It is told not to touch auth, crypto, payments, execution or migrations; for those it opens an issue instead.</li>
 <li><strong>Interactive:</strong> connect the Sentry MCP server (<code>claude mcp add --transport http sentry https://mcp.sentry.dev/mcp</code>, then <code>/mcp</code> to sign in) and ask "List new Sentry issues from the last 24h and propose fixes".</li>
 <li>Sentry error messages are user-influenced data. The prompt treats them as untrusted and never follows instructions inside them.</li>
 <li>EU-hosted Sentry organizations use a regional API host; adjust the URL if needed.</li>
@@ -453,7 +457,7 @@ Rules: never include secrets or tokens in messages or issues. Never run exploit 
 </details>
 <h3>Claude Code alternative</h3>
 <ul>
-<li><strong>GitHub Actions</strong> (<code>security-pack/examples/cve-poller.yml</code>): daily, runs <code>osv-scanner scan -L package-lock.json</code>, reads open Dependabot alerts with <code>gh api</code>, then Claude opens a summary issue and draft upgrade PRs for fixable runtime vulnerabilities after tests pass.</li>
+<li><strong>GitHub Actions</strong> (<code>security-pack/templates/.github/workflows/cve-poller.yml</code>): daily, runs <code>osv-scanner scan -L package-lock.json</code>, reads open Dependabot alerts with <code>gh api</code>, then Claude opens a summary issue and draft upgrade PRs for fixable runtime vulnerabilities after tests pass.</li>
 <li><strong>Cloud scheduled task:</strong> <code>/schedule</code> in Claude Code (research preview) runs a prompt on a fresh clone on a schedule and can open PRs from <code>claude/</code> branches.</li>
 <li><strong>Baseline either way:</strong> Dependabot alerts and security updates on, plus the <code>dependency-audit</code> CI job.</li>
 </ul>
@@ -534,7 +538,7 @@ Postgres (Supabase or Neon, RLS on)     Redis (queue, rate limits, locks, kill s
 <li>Sentry wizard files, <code>deleteSourcemapsAfterUpload</code>, replay masking defaults, organization issues endpoint, Sentry MCP URL. PostHog masking defaults and flag APIs. Supabase RLS, Security Advisor, PITR. Stripe <code>constructEvent</code>, idempotency keys, restricted keys.</li>
 <li>Grok Bot: Routines (5-minute minimum interval), X search, Connect apps, custom connectors, Custom Rules with Ask first and Allow automatically.</li>
 <li>Anthropic cyber safeguards and model fallback: Anthropic help center.</li>
-<li>All workflow files pass actionlint 1.7.12.</li>
+<li>All workflow files pass actionlint 1.7.12. Action SHAs were resolved from each repository's release tags on 2026-11-10. The gitleaks checksum step was tested against the real release files.</li>
 </ul>
 </details>
 <details><summary>Uncertain or not verified</summary>

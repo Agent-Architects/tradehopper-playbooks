@@ -1,0 +1,31 @@
+# Copy into the app repo at .github/dependabot.yml.
+# Cooldown waits 7 days before proposing a newly published version (does not delay security updates).
+# Dependabot also updates SHA-pinned actions and their version comments.
+# Security updates are enabled separately in Settings > Code security (Dependabot security updates).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types: [minor, patch]
+    labels: [dependencies]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, ci]

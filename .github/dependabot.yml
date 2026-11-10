@@ -1,27 +1,9 @@
-# Copy into the app repo at .github/dependabot.yml.
-# Security updates are enabled separately in Settings > Code security (Dependabot security updates).
+# This repo has no package manifest; only keep its own CI actions current.
 version: 2
 updates:
-  - package-ecosystem: npm
-    directory: "/"
-    schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 3
-    groups:
-      npm-minor-and-patch:
-        applies-to: version-updates
-        update-types: [minor, patch]
-    labels: [dependencies]
-
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
-      day: monday
-    groups:
-      actions:
-        patterns: ["*"]
-    labels: [dependencies, ci]
+    cooldown:
+      default-days: 7
