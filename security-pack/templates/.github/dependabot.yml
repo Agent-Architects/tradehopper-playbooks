@@ -4,6 +4,8 @@
 # Security updates are enabled separately in Settings > Code security (Dependabot security updates).
 version: 2
 updates:
+  # ADAPT: set package-ecosystem to your package manager (for example npm, pip, uv, gomod, cargo, bundler,
+  # maven, gradle, composer, nuget, docker). npm is shown as an EXAMPLE. Add one entry per ecosystem.
   - package-ecosystem: npm
     directory: "/"
     schedule:
@@ -13,7 +15,7 @@ updates:
     cooldown:
       default-days: 7
     groups:
-      npm-minor-and-patch:
+      minor-and-patch:
         applies-to: version-updates
         update-types: [minor, patch]
     labels: [dependencies]

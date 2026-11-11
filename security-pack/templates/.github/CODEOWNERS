@@ -1,6 +1,8 @@
 # Copy to .github/CODEOWNERS in the app repo. Replace @org/handles with real GitHub users or teams.
+# ADAPT: the paths below are EXAMPLES. Point them at your own auth, crypto, payments, execution worker and
+# database migration folders.
 # Changes to these paths need review from the listed owners when the ruleset requires code owner review.
-/supabase/migrations/   @YOUR-ORG/app-owners
+/db/migrations/         @YOUR-ORG/app-owners
 /src/lib/auth/          @YOUR-ORG/app-owners
 /src/lib/crypto/        @YOUR-ORG/app-owners
 /src/app/api/stripe/    @YOUR-ORG/app-owners

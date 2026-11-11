@@ -1,6 +1,13 @@
-# Security CI for a Next.js / Node (TypeScript) app. Runs on every pull request and on pushes to main.
-# Copy into the app repo at .github/workflows/security-ci.yml (with ../dependabot.yml and ../CODEOWNERS), then mark the jobs below as required
-# status checks in a branch ruleset for main.
+# Security CI template. Runs on every pull request and on pushes to main.
+# Copy into the app repo at .github/workflows/security-ci.yml (with ../dependabot.yml and ../CODEOWNERS),
+# then mark the jobs below as required status checks in a branch ruleset for main.
+#
+# ADAPT before use: this template does not assume a language or package manager.
+#   1. Set the commands in the top-level `env:` block. Node/npm values are shown as an EXAMPLE only.
+#      Leave a command empty ("") to skip that step.
+#   2. Replace the toolchain setup step in build-test (marked ADAPT) with your language's setup action.
+#   3. Set CODEQL_LANGUAGES to the languages in your repo.
+# Language-neutral jobs (gitleaks, semgrep, osv-scanner, dependency review) need no changes.
 #
 # Optional switches (Settings > Secrets and variables > Actions > Variables):
 #   ENABLE_CODEQL=true          run CodeQL on a private repo (needs GitHub Code Security). Public repos run it automatically.
@@ -21,41 +28,51 @@ concurrency:
   group: security-ci-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  detect:
-    name: detect project type
-    runs-on: ubuntu-latest
-    outputs:
-      node: ${{ steps.check.outputs.node }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: check
-        run: |
-          if [ -f package-lock.json ]; then echo "node=true" >> "$GITHUB_OUTPUT"; else echo "node=false" >> "$GITHUB_OUTPUT"; fi
+env:
+  # ADAPT: your project's commands. EXAMPLE values for Node/npm.
+  # Python example: INSTALL_CMD="pip install -r requirements.txt", LINT_CMD="ruff check .", TYPECHECK_CMD="mypy .", TEST_CMD="pytest"
+  # Go example: INSTALL_CMD="go mod download", LINT_CMD="go vet ./...", TYPECHECK_CMD="", TEST_CMD="go test ./...", BUILD_CMD="go build ./..."
+  INSTALL_CMD: npm ci
+  LINT_CMD: npm run lint
+  TYPECHECK_CMD: npm run typecheck
+  TEST_CMD: npm test
+  BUILD_CMD: npm run build
+  # Optional extra audit with your package manager's own tool. EXAMPLE (npm). Python: "pip-audit". Leave "" to rely on osv-scanner.
+  PM_AUDIT_CMD: npm audit --omit=dev --audit-level=high
+  # ADAPT: CodeQL languages, comma-separated (for example javascript-typescript, python, go, java-kotlin, ruby, csharp).
+  CODEQL_LANGUAGES: javascript-typescript
 
+jobs:
   build-test:
     name: lint, typecheck, test
-    needs: detect
-    if: needs.detect.outputs.node == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # ADAPT: toolchain setup. EXAMPLE (Node). Use actions/setup-python, actions/setup-go, etc. for other
+      # languages, pinned to a commit SHA.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
-          cache: npm
-      - run: npm ci
+      - name: Install
+        if: env.INSTALL_CMD != ''
+        run: eval "$INSTALL_CMD"
       - name: Lint
-        run: npm run lint --if-present
+        if: env.LINT_CMD != ''
+        run: eval "$LINT_CMD"
       - name: Typecheck
-        run: |
-          if npm run | grep -qE '^  typecheck$'; then npm run typecheck; else npx --no-install tsc --noEmit; fi
+        if: env.TYPECHECK_CMD != ''
+        run: eval "$TYPECHECK_CMD"
       - name: Test
-        run: npm run test --if-present
+        if: env.TEST_CMD != ''
+        run: eval "$TEST_CMD"
         env:
           CI: "true"
       - name: Build
-        run: npm run build --if-present
+        if: env.BUILD_CMD != ''
+        run: eval "$BUILD_CMD"
+      - name: Package manager audit (optional)
+        if: env.PM_AUDIT_CMD != ''
+        run: eval "$PM_AUDIT_CMD"
 
   gitleaks:
     name: secret scan (gitleaks)
@@ -102,27 +119,30 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
-          languages: javascript-typescript
+          languages: ${{ env.CODEQL_LANGUAGES }}
           build-mode: none
           queries: security-extended
       - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
   dependency-audit:
-    name: dependency audit
-    needs: detect
-    if: needs.detect.outputs.node == 'true'
+    name: dependency audit (osv-scanner)
     runs-on: ubuntu-latest
+    env:
+      OSV_SCANNER_VERSION: 2.7.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: lts/*
-          cache: npm
-      - name: npm audit (production dependencies, high and critical)
-        run: npm audit --omit=dev --audit-level=high
-      - name: Verify registry signatures
+      - name: Install osv-scanner
         run: |
-          npm ci --ignore-scripts
-          npm audit signatures
+          BIN="osv-scanner_linux_amd64"
+          BASE="https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}"
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o "$BIN" "$BASE/$BIN"
+          curl -sSfL -o SHA256SUMS "$BASE/osv-scanner_SHA256SUMS"
+          grep " ${BIN}\$" SHA256SUMS | sha256sum -c -
+          mv "$BIN" osv-scanner && chmod +x osv-scanner
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Scan all lockfiles and manifests against OSV
+        # Language-neutral: reads most lockfile formats (npm, pnpm, yarn, pip, poetry, uv, go, cargo, maven, ...).
+        run: osv-scanner scan source -r .
 
   dependency-review:
     name: dependency review

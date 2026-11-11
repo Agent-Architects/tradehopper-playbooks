@@ -13,6 +13,13 @@ on:
     - cron: "17 13 * * 1-5" # 13:17 UTC weekdays; odd minute avoids top-of-hour delays
   workflow_dispatch:
 
+env:
+  # ADAPT: your project's commands. EXAMPLE values for Node/npm (see security-ci.yml for Python and Go examples).
+  INSTALL_CMD: npm ci
+  LINT_CMD: npm run lint
+  TYPECHECK_CMD: npm run typecheck
+  TEST_CMD: npm test
+
 permissions:
   contents: write
   pull-requests: write
@@ -27,11 +34,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # ADAPT: toolchain setup and install. EXAMPLE (Node/npm). Use your language's setup action, pinned to a SHA.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
-          cache: npm
-      - run: npm ci
+      - run: eval "$INSTALL_CMD"
       - name: Fetch new Sentry issues (last 24h)
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -59,9 +66,11 @@ jobs:
             3. Create branch fix/sentry-<shortId>, write a failing test that reproduces the error where feasible,
                then make the smallest fix. Do not touch auth, crypto, payments, order execution or migrations;
                for those, open an issue describing the cause instead of a PR.
-            4. Run npm run lint, npm run typecheck and npm test. Only continue if they pass.
+            4. Run the project's lint, typecheck and test commands (environment variables LINT_CMD,
+               TYPECHECK_CMD and TEST_CMD; skip any that are empty). Only continue if they pass.
             5. Commit, push, and open a DRAFT PR titled "fix: <short description> (Sentry <shortId>)" with:
                the Sentry permalink, root cause, fix, test evidence and risk.
             Finally, write a short summary of what you did and skipped.
+          # ADAPT: replace Bash(npm:*) with your package manager or test runner (for example Bash(pytest:*), Bash(go test:*)).
           claude_args: |
-            --allowedTools "Read,Edit,Write,Bash(git:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh issue create:*),Bash(npm run:*),Bash(npm test:*),Bash(jq:*)"
+            --allowedTools "Read,Edit,Write,Bash(git:*),Bash(gh pr list:*),Bash(gh pr create:*),Bash(gh issue create:*),Bash(npm:*),Bash(jq:*)"
